@@ -39,7 +39,21 @@ ARCHIVER       = tar -zcvf
 ARCHIVE_EXT    = tar.gz
 
 # Tune for current CPU (march implies mtune)
-CARCH_FLAG     = -march=native
+#CARCH_FLAG     = -march=native
+
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+	CARCH_FLAG = -D LINUX -march=native
+	# Packages we depend on (these will be pkg-config'd)
+	PKGS           = libusb-1.0
+endif
+ifeq ($(UNAME_S),Darwin)
+	CARCH_FLAG = -D MACOS
+	# Packages we depend on (these will be pkg-config'd)
+	#PKGS           = libusb
+	#CFLAGS += -I../libusb/libusb -lusb-1.0 -L../libusb/libusb/.libs
+	CFLAGS += -I../libusb/libusb ../libusb/libusb/.libs/libusb-1.0.a -framework CoreFoundation -framework IOKit -Wno-unused-command-line-argument
+endif
 
 # Other CPU components
 # -m3dnow
@@ -72,9 +86,6 @@ OPT_FLAGS      = -O2 -pipe -Wall -Werror -ggdb
 INCDIR         =
 
 LIBDIR         =
-
-# Packages we depend on (these will be pkg-config'd)
-PKGS           = libusb-1.0
 
 LIBS           = $(shell pkg-config --libs $(PKGS))
 
@@ -171,7 +182,12 @@ sign: $(PROGS:=.asc)
 ctags:
 	@# Generate CTags
 	@echo "Generating tags file..."
+ifeq ($(UNAME_S),Linux)
 	@$(CTAGS) -R --fields=+lS . || echo "No ctags found, skipping tags file..."
+endif
+ifeq ($(UNAME_S),Darwin)
+	@$(CTAGS) --fields=+lS . || echo "No ctags found, skipping tags file..."
+endif
 .PHONY: tags
 tags: ctags
 
@@ -242,10 +258,18 @@ git.h: gitup git.h.TEMPLATE
 	@# Generating GIT header
 	@echo "Generating git header file..."
 	@cat git.h.TEMPLATE >git.h
+ifeq ($(UNAME_S),Linux)
 	@sed -i 's#//SOURCE//#// WARNING // Auto-generated file, DO NOT MODIFY //#' git.h
 	@sed -i 's#\%\%APP_VERSION\%\%#$(APPVER)#'                                  git.h
 	@sed -i 's#\%\%BUILD_DATE\%\%#$(BUILD_DATE)#'                               git.h
 	@sed -i 's#\%\%BUILD_COMMIT\%\%#$(BUILD_COMMIT)#'                           git.h
+endif
+ifeq ($(UNAME_S),Darwin)
+	@sed -i '' 's#//SOURCE//#// WARNING // Auto-generated file, DO NOT MODIFY //#' git.h
+	@sed -i '' 's#\%\%APP_VERSION\%\%#$(APPVER)#'                                  git.h
+	@sed -i '' 's#\%\%BUILD_DATE\%\%#$(BUILD_DATE)#'                               git.h
+	@sed -i '' 's#\%\%BUILD_COMMIT\%\%#$(BUILD_COMMIT)#'                           git.h
+endif
 
 log.h: log.h.TEMPLATE
 	@# Generating log header
@@ -259,9 +283,16 @@ manpage.1: manpage.1.TEMPLATE
 	@# Generating manpage
 	@echo "Generating man page file..."
 	@cat manpage.1.TEMPLATE >manpage.1
+ifeq ($(UNAME_S),Linux)
 	@sed -i 's#\%\%APP_VERSION\%\%#$(APPVER)#'                                  manpage.1
 	@sed -i 's#\%\%BUILD_MONTH\%\%#$(BUILD_MONTH)#'                             manpage.1
 	@sed -i 's#\%\%BUILD_YEAR\%\%#$(BUILD_YEAR)#'                               manpage.1
+endif
+ifeq ($(UNAME_S),Darwin)
+	@sed -i '' 's#\%\%APP_VERSION\%\%#$(APPVER)#'                                  manpage.1
+	@sed -i '' 's#\%\%BUILD_MONTH\%\%#$(BUILD_MONTH)#'                             manpage.1
+	@sed -i '' 's#\%\%BUILD_YEAR\%\%#$(BUILD_YEAR)#'                               manpage.1
+endif
 
 $(OPTIONS_FILE): $(OPTIONS_FILE).DEFAULT
 	@cp $(OPTIONS_FILE).DEFAULT $(OPTIONS_FILE)
@@ -272,9 +303,16 @@ $(OPTIONS_FILE): $(OPTIONS_FILE).DEFAULT
 %.html: %.md markdown.TEMPLATE.html
 	@# Generating HTML
 	@sed '/^/,/^%%%%%BODY%%%%%/{/^%%%%%BODY%%%%%/,$$d}' <markdown.TEMPLATE.html  >"$@"
+ifeq ($(UNAME_S),Linux)
 	@TITLE="$(shell sed -n 's/^# \([^#]*\) #$$/\1/p;q' <"$<")"; \
 		echo "Generating $$TITLE ($<)"; \
 		sed -i 's/%%%%%TITLE%%%%%/'"$$TITLE"'/'             "$@"
+endif
+ifeq ($(UNAME_S),Darwin)
+	@TITLE="$(shell sed -n 's/^# \([^#]*\) #$$/\1/p;q' <"$<")"; \
+		echo "Generating $$TITLE ($<)"; \
+		sed -i '' 's/%%%%%TITLE%%%%%/'"$$TITLE"'/'             "$@"
+endif
 	$(MARKDOWN_GEN) $(MD_FLAGS) "$<"                                            >>"$@"
 	@echo                                                                       >>"$@"
 	@sed '1,/^%%%%%BODY%%%%%/d'                         <markdown.TEMPLATE.html >>"$@"
