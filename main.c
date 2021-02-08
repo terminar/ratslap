@@ -27,8 +27,14 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <string.h>
-#include <libusb-1.0/libusb.h>
-#include <linux/hid.h>
+
+#ifdef MACOS
+    #include <libusb.h>
+#else
+    #include <libusb-1.0/libusb.h>
+    #include <linux/hid.h>
+#endif
+
 
 #include "app.h"
 #include "lang.h"
@@ -41,6 +47,14 @@
 // QB#111 - Older version (eg 1.0.14) didn't support libusb_strerror
 #ifndef libusb_strerror
 #define libusb_strerror libusb_error_name
+#endif
+
+// libusb/os/windows_winusb.h + linux/hid.h
+#ifndef HID_REQ_SET_REPORT
+    #define HID_REQ_SET_REPORT 0x09
+#endif
+#ifndef HID_REQ_GET_REPORT
+    #define HID_REQ_GET_REPORT 0x01
 #endif
 
 // http://www.tldp.org/LDP/abs/html/exitcodes.html
@@ -750,7 +764,9 @@ int mouse_hid_detach_kernel(int iface) {
 
     if (!_usb_dev_handle || iface < 0) return -1;
 
+#ifndef MACOS
     ret = libusb_detach_kernel_driver(_usb_dev_handle, iface);
+#endif
     if (ret != 0) {
         elog("ERROR: Failed to detach kernel driver: %s\n", libusb_strerror(ret));
         return ret;
@@ -761,7 +777,9 @@ int mouse_hid_detach_kernel(int iface) {
         elog("ERROR: Failed to claim interface: %s\n", libusb_strerror(ret));
 
         // Reattach the kernel driver
+#ifndef MACOS
         ret = libusb_attach_kernel_driver(_usb_dev_handle, iface);
+#endif
         if (ret != 0) {
             elog("ERROR: Failed to attach kernel driver: %s\n", libusb_strerror(ret));
         }
@@ -782,7 +800,9 @@ int mouse_hid_attach_kernel(int iface) {
         elog("ERROR: Failed to release interface: %s\n", libusb_strerror(ret));
     }
 
+#ifndef MACOS
     ret = libusb_attach_kernel_driver(_usb_dev_handle, iface);
+#endif
     if (ret != 0) {
         elog("ERROR: Failed to attach kernel driver: %s\n", libusb_strerror(ret));
         return ret;
